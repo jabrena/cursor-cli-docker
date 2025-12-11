@@ -40,6 +40,18 @@ jobs:
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }} .
+
+      - name: Run docker image
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          docker run --rm ${{ env.IMAGE_NAME }} cursor-agent --version || true
+          echo "Container logs:"
+          docker run --rm -e CURSOR_API_KEY=${{ secrets.CURSOR_API_KEY }} ${{ env.IMAGE_NAME }} cursor-agent --help
+
       # - name: Build and push Docker image
       #   uses: docker/build-push-action@v5
       #   with:
