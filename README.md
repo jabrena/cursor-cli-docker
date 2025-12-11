@@ -14,20 +14,6 @@ docker run -it -e CURSOR_API_KEY=your_api_key_here cursor-cli cursor-agent <comm
 docker run -it -e CURSOR_API_KEY=your_api_key_here cursor-cli cursor-agent --help
 ```
 
-## CI/CD
-
-This repository includes a GitHub Actions workflow that automatically builds the Docker image on:
-- Pushes to `main` or `master` branches
-- Pull requests to `main` or `master` branches
-- Tagged releases (tags starting with `v*`)
-- Manual workflow dispatch
-
-The built images are pushed to GitHub Container Registry (ghcr.io) and can be pulled using:
-
-```bash
-docker pull ghcr.io/<your-username>/cursor-cli:latest
-```
-
 ## Notes
 
 - The `CURSOR_API_KEY` environment variable must be provided at runtime for authentication

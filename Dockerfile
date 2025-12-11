@@ -29,6 +29,10 @@ ENV CURSOR_API_KEY=""
 # Example: docker run -e PROMPT="your prompt text here"
 ENV PROMPT=""
 
+# Set output format for headless mode (text, json, stream-json)
+# Example: docker run -e OUTPUT_FORMAT=text
+ENV OUTPUT_FORMAT="text"
+
 # Create a working directory for cursor-agent to operate in
 WORKDIR /workspace
 
@@ -38,7 +42,9 @@ RUN chmod 755 /workspace
 # Verify the installation
 RUN cursor-agent --version || true
 
-# Set the default command to use the prompt parameter
-# Use shell form to allow variable expansion and proper command execution
-# Pass the prompt as an argument to cursor-agent
-CMD if [ -n "$PROMPT" ]; then cursor-agent "$PROMPT"; else cursor-agent --help; fi
+# Set the default command to use headless mode with print flag
+# Use -p (--print) for non-interactive scripting and automation
+# Use --force to allow file modifications in scripts
+# Use --output-format for structured output (text, json, stream-json)
+# Reference: https://cursor.com/docs/cli/headless
+CMD if [ -n "$PROMPT" ]; then cursor-agent -p --force --output-format "$OUTPUT_FORMAT" "$PROMPT"; else cursor-agent --help; fi
