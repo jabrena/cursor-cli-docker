@@ -50,8 +50,8 @@ jobs:
         run: |
           docker run --rm ${{ env.IMAGE_NAME }} cursor-agent --version || true
           echo "Container logs:"
-          PROMPT_CONTENT=$(cat prompt-demo.md)
-          docker run --rm -e CURSOR_API_KEY=${{ secrets.CURSOR_API_KEY }} -e PROMPT="$PROMPT_CONTENT" ${{ env.IMAGE_NAME }}
+          PROMPT_CONTENT=$(cat prompt-demo2.md)
+          docker run --rm -e CURSOR_API_KEY=${{ secrets.CURSOR_API_KEY }} -e PROMPT="$PROMPT_CONTENT" -e GIT_REPOSITORY=https://github.com/jabrena/cursor-cli-docker ${{ env.IMAGE_NAME }}
 
       # - name: Build and push Docker image
       #   uses: docker/build-push-action@v5
