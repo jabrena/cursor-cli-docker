@@ -24,7 +24,7 @@ Follow the next steps to achieve the goal.
 
 ## Output format
 
-- Show maven execution in agent tests
+- Explain the process
 
 ## Acceptance Criteria
 
