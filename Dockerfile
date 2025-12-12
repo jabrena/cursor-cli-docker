@@ -91,6 +91,12 @@ CMD if [ -n "$GIT_REPOSITORY" ]; then \
       echo "Repository cloned successfully"; \
     fi && \
     if [ -n "$PROMPT" ]; then \
+      echo "=== User Prompt:==="; \
+      echo ""; \
+      echo "$PROMPT"; \
+      echo ""; \
+      echo "=== Cursor Agent Execution:==="; \
+      echo ""; \
       cursor-agent -p --force --output-format "$OUTPUT_FORMAT" "$PROMPT"; \
     else \
       cursor-agent --help; \
