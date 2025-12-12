@@ -71,6 +71,10 @@ ENV PROMPT=""
 # Example: docker run -e OUTPUT_FORMAT=text
 ENV OUTPUT_FORMAT="text"
 
+# Set the model parameter for cursor-agent (should be provided at runtime)
+# Example: docker run -e MODEL=auto
+ENV MODEL=""
+
 # Set the git repository parameter (should be provided at runtime)
 # Example: docker run -e GIT_REPOSITORY=https://github.com/user/repo.git
 ENV GIT_REPOSITORY=""
@@ -125,12 +129,15 @@ CMD if [ -n "$GIT_REPOSITORY" ]; then \
       echo ""; \
       echo "$PROMPT"; \
       echo ""; \
-      echo "=== Available Models:==="; \
-      cursor-agent --model 2>&1 || cursor-agent --help | grep -i model || echo "Models information not available"; \
-      echo ""; \
       echo "=== Cursor Agent Execution:==="; \
       echo ""; \
-      cursor-agent -p --force --output-format "$OUTPUT_FORMAT" "$PROMPT"; \
+      if [ -n "$MODEL" ]; then \
+        echo "Model: $MODEL"; \
+        cursor-agent -p --force --output-format "$OUTPUT_FORMAT" --model "$MODEL" "$PROMPT"; \
+      else \
+        echo "Model: (not set)"; \
+        cursor-agent -p --force --output-format "$OUTPUT_FORMAT" "$PROMPT"; \
+      fi; \
       if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPOSITORY" ] && [ "$PR" = "true" ]; then \
         cd /workspace && \
         git fetch origin 2>/dev/null || true && \
