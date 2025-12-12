@@ -1,4 +1,4 @@
-name: Build Docker Image
+name: Run Cursor Agent on Demand
 
 on:
   workflow_dispatch:
