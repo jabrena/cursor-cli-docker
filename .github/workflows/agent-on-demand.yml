@@ -49,7 +49,7 @@ jobs:
           git config --global user.name "${{ github.actor }}"
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
 
-      - name: Publish docs branch (deterministic)
+      - name: Commit changes in the feature branch (deterministic)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -76,21 +76,28 @@ jobs:
             PR_NUMBER=$EXISTING_PR
           else
             # Create new PR
-            PR_NUMBER=$(gh pr create \
+            PR_URL=$(gh pr create \
               --title "feat: Hello World Java program for PR" \
               --body "Automated PR created by cursor-agent workflow" \
               --base "$DEFAULT_BRANCH" \
               --head "$BRANCH_NAME" \
-              --repo ${{ github.repository }} \
-              --json number -q .number || echo "")
+              --repo ${{ github.repository }} || echo "")
             
-            if [ -z "$PR_NUMBER" ]; then
+            if [ -z "$PR_URL" ]; then
               echo "Failed to create PR. You can create it manually at:"
               echo "https://github.com/${{ github.repository }}/compare/$DEFAULT_BRANCH...$BRANCH_NAME"
               exit 1
             fi
             
-            echo "Created PR #$PR_NUMBER"
+            # Extract PR number from URL (e.g., https://github.com/owner/repo/pull/123 -> 123)
+            PR_NUMBER=$(echo "$PR_URL" | sed -E 's/.*\/pull\/([0-9]+).*/\1/')
+            
+            if [ -z "$PR_NUMBER" ]; then
+              echo "Failed to extract PR number from URL: $PR_URL"
+              exit 1
+            fi
+            
+            echo "Created PR #$PR_NUMBER at $PR_URL"
           fi
           
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
