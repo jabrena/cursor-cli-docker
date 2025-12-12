@@ -18,6 +18,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zip \
     && rm -rf /var/lib/apt/lists/*
 
+# Install GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install SDKMAN for Java version management
 RUN curl -s "https://get.sdkman.io" | bash
 
@@ -128,30 +136,25 @@ CMD if [ -n "$GIT_REPOSITORY" ]; then \
           echo "=== Creating Pull Request:==="; \
           echo "Branch: $CURRENT_BRANCH"; \
           echo "Base: $DEFAULT_BRANCH"; \
+          echo "$GITHUB_TOKEN" | gh auth login --with-token && \
           PR_TITLE="Automated PR: Changes from cursor-agent" && \
           PR_BODY="This PR was automatically created by cursor-agent." && \
-          PR_RESPONSE=$(curl -s -X POST \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls" \
-            -d "{\"title\":\"$PR_TITLE\",\"body\":\"$PR_BODY\",\"head\":\"$CURRENT_BRANCH\",\"base\":\"$DEFAULT_BRANCH\"}") && \
-          PR_URL=$(echo "$PR_RESPONSE" | grep -o '"html_url":"[^"]*"' | head -1 | cut -d'"' -f4) && \
-          if [ -n "$PR_URL" ]; then \
-            echo "Pull Request created successfully!"; \
-            echo "PR URL: $PR_URL"; \
-          else \
-            PR_ERROR=$(echo "$PR_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | cut -d'"' -f4) && \
-            if [ -n "$PR_ERROR" ]; then \
-              if echo "$PR_ERROR" | grep -q "already exists"; then \
-                echo "Pull Request already exists for branch: $CURRENT_BRANCH"; \
-                echo "PR URL: https://github.com/$GITHUB_REPOSITORY/pull/new/$CURRENT_BRANCH"; \
-              else \
-                echo "Failed to create PR: $PR_ERROR"; \
-                echo "You can create it manually at: https://github.com/$GITHUB_REPOSITORY/pull/new/$CURRENT_BRANCH"; \
-              fi; \
+          if gh pr create --title "$PR_TITLE" --body "$PR_BODY" --base "$DEFAULT_BRANCH" --head "$CURRENT_BRANCH" --repo "$GITHUB_REPOSITORY" 2>&1; then \
+            PR_URL=$(gh pr view "$CURRENT_BRANCH" --repo "$GITHUB_REPOSITORY" --json url -q .url 2>/dev/null || echo "") && \
+            if [ -n "$PR_URL" ]; then \
+              echo "Pull Request created successfully!"; \
+              echo "PR URL: $PR_URL"; \
             else \
-              echo "Failed to create PR. Response: $PR_RESPONSE"; \
-              echo "You can create it manually at: https://github.com/$GITHUB_REPOSITORY/pull/new/$CURRENT_BRANCH"; \
+              echo "Pull Request created successfully!"; \
+              echo "PR URL: https://github.com/$GITHUB_REPOSITORY/pull/new/$CURRENT_BRANCH"; \
+            fi; \
+          else \
+            PR_EXISTS=$(gh pr list --head "$CURRENT_BRANCH" --repo "$GITHUB_REPOSITORY" --json number -q '.[0].number' 2>/dev/null || echo "") && \
+            if [ -n "$PR_EXISTS" ]; then \
+              echo "Pull Request already exists for branch: $CURRENT_BRANCH"; \
+              echo "PR URL: https://github.com/$GITHUB_REPOSITORY/pull/$PR_EXISTS"; \
+            else \
+              echo "Failed to create PR. You can create it manually at: https://github.com/$GITHUB_REPOSITORY/pull/new/$CURRENT_BRANCH"; \
             fi; \
           fi; \
         else \
