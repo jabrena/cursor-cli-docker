@@ -35,8 +35,6 @@ jobs:
       - name: Run Cursor Agent
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          # Disable output buffering for streaming output
-          PYTHONUNBUFFERED: 1
         run: |
           echo "=== User Prompt:===";
           jbang trust add https://github.com/jabrena/
@@ -44,8 +42,7 @@ jobs:
           echo "$PROMPT";
           echo "=== Cursor Agent Execution:===";
           echo "";
-          # Use stdbuf to disable buffering for real-time streaming output
-          stdbuf -oL -eL cursor-agent -p "$PROMPT" --model auto
+          cursor-agent -p "$PROMPT" --model auto
           
       - name: Configure Git
         run: |
