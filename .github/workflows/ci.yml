@@ -58,6 +58,7 @@ jobs:
             -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
             -e GITHUB_ACTOR=${{ github.actor }} \
             -e GITHUB_REPOSITORY=${{ github.repository }} \
+            -e PR=false \
             ${{ env.IMAGE_NAME }}
 
       # - name: Build and push Docker image

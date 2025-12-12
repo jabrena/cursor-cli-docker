@@ -81,6 +81,10 @@ ENV GITHUB_TOKEN=""
 ENV GITHUB_ACTOR=""
 ENV GITHUB_REPOSITORY=""
 
+# Set PR creation flag (should be provided at runtime)
+# Example: docker run -e PR=true to enable PR creation, -e PR=false to disable
+ENV PR="false"
+
 # Create a working directory for cursor-agent to operate in
 WORKDIR /workspace
 
@@ -121,10 +125,13 @@ CMD if [ -n "$GIT_REPOSITORY" ]; then \
       echo ""; \
       echo "$PROMPT"; \
       echo ""; \
+      echo "=== Available Models:==="; \
+      cursor-agent --models 2>&1 || cursor-agent --help | grep -i model || echo "Models information not available"; \
+      echo ""; \
       echo "=== Cursor Agent Execution:==="; \
       echo ""; \
       cursor-agent -p --force --output-format "$OUTPUT_FORMAT" "$PROMPT"; \
-      if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPOSITORY" ]; then \
+      if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPOSITORY" ] && [ "$PR" = "true" ]; then \
         cd /workspace && \
         git fetch origin 2>/dev/null || true && \
         CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "") && \
