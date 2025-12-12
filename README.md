@@ -23,3 +23,5 @@ docker run -it -e CURSOR_API_KEY=your_api_key_here cursor-cli cursor-agent --hel
 ## References
 
 - https://cursor.com/docs/cli/headless
+- https://cursor.com/docs/cli/github-actions
+- https://cursor.com/docs/cli/reference/permissions

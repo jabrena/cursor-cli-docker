@@ -1,0 +1,105 @@
+name: Build Docker Image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  agent-on-demand:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Java 25 with GraalVM
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'graalvm'
+          java-version: '25'
+
+      - name: Setup jbang
+        run: |
+          curl --proto '=https' -Ls https://sh.jbang.dev | bash -s - app setup
+          echo "$HOME/.jbang/bin" >> $GITHUB_PATH
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Run Cursor Agent
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          jbang trust add https://github.com/jabrena/
+          PROMPT=$(jbang pml-to-md.0.4.0-SNAPSHOT@jabrena convert pml-hello-world-java.xml)
+          cursor-agent -p "$PROMPT" --model auto
+          
+      - name: Configure Git
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: Publish docs branch (deterministic)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Deterministic git operations handled by CI
+          BRANCH_NAME="cursor-agent/$(date +%Y%m%d-%H%M%S)"
+          git checkout -B "$BRANCH_NAME"
+          git add -A
+          git commit -m "feat: Hello World Java program for PR" || echo "No changes to commit"
+          git push origin "$BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Create or update PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Authenticate GitHub CLI
+          echo "$GITHUB_TOKEN" | gh auth login --with-token
+          
+          # Get default branch
+          DEFAULT_BRANCH=$(gh repo view ${{ github.repository }} --json defaultBranchRef -q .defaultBranchRef.name || echo "main")
+          
+          # Check if PR already exists for this branch
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --repo ${{ github.repository }} --json number -q '.[0].number' || echo "")
+          
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for branch $BRANCH_NAME"
+            PR_NUMBER=$EXISTING_PR
+          else
+            # Create new PR
+            PR_NUMBER=$(gh pr create \
+              --title "feat: Hello World Java program for PR" \
+              --body "Automated PR created by cursor-agent workflow" \
+              --base "$DEFAULT_BRANCH" \
+              --head "$BRANCH_NAME" \
+              --repo ${{ github.repository }} \
+              --json number -q .number || echo "")
+            
+            if [ -z "$PR_NUMBER" ]; then
+              echo "Failed to create PR. You can create it manually at:"
+              echo "https://github.com/${{ github.repository }}/compare/$DEFAULT_BRANCH...$BRANCH_NAME"
+              exit 1
+            fi
+            
+            echo "Created PR #$PR_NUMBER"
+          fi
+          
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+
+      - name: Post PR comment (deterministic)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Authenticate GitHub CLI
+          echo "$GITHUB_TOKEN" | gh auth login --with-token
+          
+          # Comment on the PR
+          gh pr comment $PR_NUMBER --repo ${{ github.repository }} --body "Docs updated"
