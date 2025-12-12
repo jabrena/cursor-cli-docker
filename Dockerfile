@@ -21,7 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install SDKMAN for Java version management
 RUN curl -s "https://get.sdkman.io" | bash
 
-# Source SDKMAN and install SDKs as developer user
+# Set SDKMAN directory before using it
+ENV SDKMAN_DIR="/root/.sdkman"
+
+# Source SDKMAN and install SDKs
 RUN bash -c "source ${SDKMAN_DIR}/bin/sdkman-init.sh && \
     sdk install java 25.0.1-graalce && \
     sdk install maven 3.9.10 && \
@@ -33,7 +36,6 @@ RUN bash -c "source ${SDKMAN_DIR}/bin/sdkman-init.sh && \
     sdk default jbang 0.135.0"
 
 # Add SDKMAN to PATH and source it in bash profile
-ENV SDKMAN_DIR="/root/.sdkman"
 ENV JAVA_HOME="/root/.sdkman/candidates/java/current"
 RUN echo "source $SDKMAN_DIR/bin/sdkman-init.sh" >> /root/.bashrc
 
