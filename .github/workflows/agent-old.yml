@@ -1,6 +1,7 @@
 name: Build Docker Image
 
-on: [push]
+on:
+  workflow_dispatch:
 
 env:
   IMAGE_NAME: cursor-docker-cli
