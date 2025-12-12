@@ -67,6 +67,12 @@ ENV OUTPUT_FORMAT="text"
 # Example: docker run -e GIT_REPOSITORY=https://github.com/user/repo.git
 ENV GIT_REPOSITORY=""
 
+# Set GitHub credentials for git operations (should be provided at runtime)
+# Example: docker run -e GITHUB_TOKEN=your_token_here
+ENV GITHUB_TOKEN=""
+ENV GITHUB_ACTOR=""
+ENV GITHUB_REPOSITORY=""
+
 # Create a working directory for cursor-agent to operate in
 WORKDIR /workspace
 
@@ -89,6 +95,18 @@ CMD if [ -n "$GIT_REPOSITORY" ]; then \
       find /workspace -mindepth 1 -delete 2>/dev/null || true; \
       git clone "$GIT_REPOSITORY" /workspace || (echo "Failed to clone repository" && exit 1); \
       echo "Repository cloned successfully"; \
+      cd /workspace && \
+      if [ -n "$GITHUB_TOKEN" ]; then \
+        echo "Configuring git credentials for authentication"; \
+        git config --global user.name "${GITHUB_ACTOR:-cursor-agent}" && \
+        git config --global user.email "${GITHUB_ACTOR:-cursor-agent}@users.noreply.github.com" && \
+        git config --global credential.helper store && \
+        echo "https://${GITHUB_ACTOR:-x-access-token}:${GITHUB_TOKEN}@github.com" > /root/.git-credentials && \
+        if [ -n "$GITHUB_REPOSITORY" ]; then \
+          git remote set-url origin "https://${GITHUB_ACTOR:-x-access-token}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" || true; \
+        fi && \
+        echo "Git credentials configured successfully"; \
+      fi; \
     fi && \
     if [ -n "$PROMPT" ]; then \
       echo "=== User Prompt:==="; \

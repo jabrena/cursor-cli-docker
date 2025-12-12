@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -51,7 +51,14 @@ jobs:
           docker run --rm ${{ env.IMAGE_NAME }} cursor-agent --version || true
           echo "Container logs:"
           PROMPT_CONTENT=$(cat prompt-demo2.md)
-          docker run --rm -e CURSOR_API_KEY=${{ secrets.CURSOR_API_KEY }} -e PROMPT="$PROMPT_CONTENT" -e GIT_REPOSITORY=https://github.com/jabrena/cursor-cli-docker ${{ env.IMAGE_NAME }}
+          docker run --rm \
+            -e CURSOR_API_KEY=${{ secrets.CURSOR_API_KEY }} \
+            -e PROMPT="$PROMPT_CONTENT" \
+            -e GIT_REPOSITORY=https://github.com/jabrena/cursor-cli-docker \
+            -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            -e GITHUB_ACTOR=${{ github.actor }} \
+            -e GITHUB_REPOSITORY=${{ github.repository }} \
+            ${{ env.IMAGE_NAME }}
 
       # - name: Build and push Docker image
       #   uses: docker/build-push-action@v5
