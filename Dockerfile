@@ -136,7 +136,6 @@ CMD if [ -n "$GIT_REPOSITORY" ]; then \
           echo "=== Creating Pull Request:==="; \
           echo "Branch: $CURRENT_BRANCH"; \
           echo "Base: $DEFAULT_BRANCH"; \
-          echo "$GITHUB_TOKEN" | gh auth login --with-token && \
           PR_TITLE="Automated PR: Changes from cursor-agent" && \
           PR_BODY="This PR was automatically created by cursor-agent." && \
           if gh pr create --title "$PR_TITLE" --body "$PR_BODY" --base "$DEFAULT_BRANCH" --head "$CURRENT_BRANCH" --repo "$GITHUB_REPOSITORY" 2>&1; then \
