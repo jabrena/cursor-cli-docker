@@ -64,106 +64,45 @@ jobs:
       - name: Create or update PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Optionally use PAT if GITHUB_TOKEN doesn't have permission to create PRs
-          # Set PAT_TOKEN secret in repository settings if needed
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          # Use PAT_TOKEN if available, otherwise fall back to GITHUB_TOKEN
           AUTH_TOKEN="${PAT_TOKEN:-$GITHUB_TOKEN}"
-          
-          # Get default branch
+          API_BASE="https://api.github.com/repos/${{ github.repository }}"
           DEFAULT_BRANCH=$(gh repo view ${{ github.repository }} --json defaultBranchRef -q .defaultBranchRef.name || echo "main")
           
-          # Check if PR already exists for this branch
-          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --repo ${{ github.repository }} --json number -q '.[0].number' || echo "")
+          # Create PR (branch name is unique with timestamp)
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $AUTH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$API_BASE/pulls" \
+            -d "{\"title\":\"feat: Hello World Java program for PR\",\"body\":\"Automated PR created by cursor-agent workflow\",\"head\":\"$BRANCH_NAME\",\"base\":\"$DEFAULT_BRANCH\"}")
           
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR #$EXISTING_PR already exists for branch $BRANCH_NAME"
-            PR_NUMBER=$EXISTING_PR
-          else
-            # Create PR using GitHub REST API directly
-            PR_RESPONSE=$(curl -s -w "\n%{http_code}" \
-              -X POST \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer $AUTH_TOKEN" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              https://api.github.com/repos/${{ github.repository }}/pulls \
-              -d "{
-                \"title\": \"feat: Hello World Java program for PR\",
-                \"body\": \"Automated PR created by cursor-agent workflow\",
-                \"head\": \"$BRANCH_NAME\",
-                \"base\": \"$DEFAULT_BRANCH\"
-              }")
-            
-            HTTP_CODE=$(echo "$PR_RESPONSE" | tail -n1)
-            PR_BODY=$(echo "$PR_RESPONSE" | sed '$d')
-            
-            if [ "$HTTP_CODE" != "201" ]; then
-              echo "::warning::Failed to create PR (HTTP $HTTP_CODE)"
-              echo "Response:"
-              echo "$PR_BODY"
-              echo ""
-              if [ "$HTTP_CODE" = "403" ]; then
-                echo "::error::GitHub Actions is not permitted to create pull requests."
-                echo "To fix this:"
-                echo "1. Go to Repository Settings → Actions → General → Workflow permissions"
-                echo "2. Select 'Read and write permissions'"
-                echo "3. Check 'Allow GitHub Actions to create and approve pull requests'"
-                echo ""
-                echo "OR use a Personal Access Token (PAT):"
-                echo "1. Create a PAT with 'repo' scope at https://github.com/settings/tokens"
-                echo "2. Add it as a secret named 'PAT_TOKEN' in repository settings"
-                echo ""
-              fi
-              echo "You can create the PR manually at:"
-              echo "https://github.com/${{ github.repository }}/compare/$DEFAULT_BRANCH...$BRANCH_NAME"
-              # Don't exit 1 - allow workflow to continue
-              exit 0
-            fi
-            
-            # Extract PR number from JSON response
-            PR_NUMBER=$(echo "$PR_BODY" | grep -o '"number":[0-9]*' | grep -o '[0-9]*' | head -n1)
-            
-            if [ -z "$PR_NUMBER" ]; then
-              echo "Failed to extract PR number from response:"
-              echo "$PR_BODY"
-              exit 0
-            fi
-            
-            PR_URL=$(echo "$PR_BODY" | grep -o '"html_url":"[^"]*"' | cut -d'"' -f4)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_CODE" = "201" ]; then
+            PR_NUMBER=$(echo "$BODY" | jq -r '.number')
+            PR_URL=$(echo "$BODY" | jq -r '.html_url')
             echo "Created PR #$PR_NUMBER at $PR_URL"
+            echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          else
+            echo "::warning::Failed to create PR (HTTP $HTTP_CODE)"
+            [ "$HTTP_CODE" = "403" ] && echo "::error::Enable 'Allow GitHub Actions to create and approve pull requests' in repository settings, or use PAT_TOKEN secret"
+            echo "Create manually: https://github.com/${{ github.repository }}/compare/$DEFAULT_BRANCH...$BRANCH_NAME"
           fi
-          
-          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
 
-      - name: Post PR comment (deterministic)
+      - name: Post PR comment
+        if: env.PR_NUMBER != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          # Comment on the PR if it exists
-          if [ -z "$PR_NUMBER" ]; then
-            echo "PR_NUMBER is not set, skipping comment"
-            exit 0
-          fi
-          
-          # Use PAT_TOKEN if available, otherwise fall back to GITHUB_TOKEN
           AUTH_TOKEN="${PAT_TOKEN:-$GITHUB_TOKEN}"
-          
-          # Use GitHub REST API to post comment
-          COMMENT_RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -X POST \
+          curl -s -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $AUTH_TOKEN" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/comments \
-            -d "{\"body\": \"Docs updated\"}")
-          
-          HTTP_CODE=$(echo "$COMMENT_RESPONSE" | tail -n1)
-          
-          if [ "$HTTP_CODE" = "201" ]; then
-            echo "Successfully posted comment on PR #$PR_NUMBER"
-          else
-            echo "Failed to post comment on PR #$PR_NUMBER (HTTP $HTTP_CODE)"
-            echo "$COMMENT_RESPONSE" | sed '$d'
-          fi
+            "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            -d "{\"body\":\"Docs updated\"}" > /dev/null
+          echo "Posted comment on PR #$PR_NUMBER"
