@@ -19,3 +19,7 @@ docker run -it -e CURSOR_API_KEY=your_api_key_here cursor-cli cursor-agent --hel
 - The `CURSOR_API_KEY` environment variable must be provided at runtime for authentication
 - The API key is not hardcoded in the Dockerfile for security reasons
 - The cursor-cli is installed to `/root/.local/bin` and added to the PATH
+
+## References
+
+- https://cursor.com/docs/cli/headless
