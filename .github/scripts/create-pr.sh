@@ -54,6 +54,12 @@ else
     echo -e "${GREEN}Default branch (from git): $DEFAULT_BRANCH${NC}"
 fi
 
+# Validate DEFAULT_BRANCH is not empty
+if [ -z "$DEFAULT_BRANCH" ]; then
+    echo -e "${RED}Error: Could not determine default branch${NC}"
+    exit 1
+fi
+
 # Step 1: Configure Git (if not already configured)
 echo -e "\n${YELLOW}=== Configuring Git ===${NC}"
 GIT_USER_NAME=$(git config --global user.name 2>/dev/null || echo "")
@@ -86,44 +92,17 @@ echo "Current branch: $CURRENT_BRANCH"
 echo "Working directory status:"
 git status --short || true
 
+# Ensure we have the default branch fetched for comparison
+echo "Fetching default branch: $DEFAULT_BRANCH"
+git fetch origin "$DEFAULT_BRANCH:$DEFAULT_BRANCH" 2>/dev/null || git fetch origin "$DEFAULT_BRANCH" 2>/dev/null || true
+
 # Create the feature branch from current state (preserves any uncommitted changes)
+# This matches the original workflow logic: git checkout -B "$BRANCH_NAME"
 git checkout -B "$BRANCH_NAME"
 
-# Stage and commit any changes
-HAS_CHANGES=false
-if [ -n "$(git status --porcelain)" ]; then
-    echo "Staging all changes..."
-    git add -A
-    
-    if ! git diff --staged --quiet; then
-        git commit -m "feat: Hello World Java program for PR"
-        echo -e "${GREEN}Committed changes${NC}"
-        HAS_CHANGES=true
-    else
-        echo -e "${YELLOW}No staged changes to commit${NC}"
-    fi
-else
-    echo -e "${YELLOW}No changes detected in working directory${NC}"
-fi
-
-# Verify branch has commits
-if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
-    echo -e "${RED}Error: Branch has no commits${NC}"
-    exit 1
-fi
-
-# Check if branch differs from base branch
-COMMIT_COUNT=$(git rev-list --count "$DEFAULT_BRANCH"..HEAD 2>/dev/null || echo "0")
-DIFF_COUNT=$(git diff --name-only "$DEFAULT_BRANCH"..HEAD 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-
-echo "Commits ahead of $DEFAULT_BRANCH: $COMMIT_COUNT"
-echo "Files changed: $DIFF_COUNT"
-
-if [ "$COMMIT_COUNT" -eq 0 ] && [ "$DIFF_COUNT" -eq 0 ]; then
-    echo -e "${YELLOW}No differences from $DEFAULT_BRANCH. Creating empty commit to enable PR...${NC}"
-    git commit --allow-empty -m "feat: Hello World Java program for PR (no changes detected)"
-    HAS_CHANGES=true
-fi
+# Stage and commit any changes (matching original workflow logic)
+git add -A
+git commit -m "feat: Hello World Java program for PR" || echo "No changes to commit"
 
 # Push branch
 echo "Pushing branch to origin..."
@@ -148,12 +127,29 @@ fi
 echo -e "\n${YELLOW}=== Creating Pull Request ===${NC}"
 API_BASE="https://api.github.com/repos/$GITHUB_REPO"
 
+# Use jq to properly construct JSON payload (prevents JSON injection and ensures proper formatting)
+if command -v jq &> /dev/null; then
+    JSON_PAYLOAD=$(jq -n \
+        --arg title "feat: Hello World Java program for PR" \
+        --arg body "Automated PR created by cursor-agent workflow" \
+        --arg head "$BRANCH_NAME" \
+        --arg base "$DEFAULT_BRANCH" \
+        '{title: $title, body: $body, head: $head, base: $base}')
+else
+    # Fallback to inline JSON (original workflow approach)
+    JSON_PAYLOAD="{\"title\":\"feat: Hello World Java program for PR\",\"body\":\"Automated PR created by cursor-agent workflow\",\"head\":\"$BRANCH_NAME\",\"base\":\"$DEFAULT_BRANCH\"}"
+fi
+
+# Debug: Show the payload being sent
+echo "PR payload: $JSON_PAYLOAD"
+
 RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
     -H "Accept: application/vnd.github+json" \
     -H "Authorization: Bearer $AUTH_TOKEN" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
+    -H "Content-Type: application/json" \
     "$API_BASE/pulls" \
-    -d "{\"title\":\"feat: Hello World Java program for PR\",\"body\":\"Automated PR created by cursor-agent workflow\",\"head\":\"$BRANCH_NAME\",\"base\":\"$DEFAULT_BRANCH}")
+    -d "$JSON_PAYLOAD")
 
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | sed '$d')
@@ -170,12 +166,18 @@ if [ "$HTTP_CODE" = "201" ]; then
     
     # Step 4: Post PR comment
     echo -e "\n${YELLOW}=== Posting comment on PR ===${NC}"
+    if command -v jq &> /dev/null; then
+        COMMENT_PAYLOAD=$(jq -n --arg body "Docs updated" '{body: $body}')
+    else
+        COMMENT_PAYLOAD="{\"body\":\"Docs updated\"}"
+    fi
     COMMENT_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
         -H "Accept: application/vnd.github+json" \
         -H "Authorization: Bearer $AUTH_TOKEN" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
+        -H "Content-Type: application/json" \
         "$API_BASE/issues/$PR_NUMBER/comments" \
-        -d "{\"body\":\"Docs updated\"}")
+        -d "$COMMENT_PAYLOAD")
     
     COMMENT_HTTP_CODE=$(echo "$COMMENT_RESPONSE" | tail -n1)
     if [ "$COMMENT_HTTP_CODE" = "201" ]; then
